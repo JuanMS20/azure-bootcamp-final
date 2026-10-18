@@ -25,7 +25,7 @@ variables:
   envName: 'dev'
   namePrefix: 'bootc'
   # IP pública autorizada para RDP/SSH en la subred de administración (formato CIDR)
-  adminSourceIp: '203.0.113.10/32'
+  adminSourceIp: '186.27.170.71/32'
 
 stages:
   # ---------------------------------------------------------------
