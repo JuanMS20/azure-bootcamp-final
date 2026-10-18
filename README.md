@@ -98,3 +98,8 @@ Capturas del pipeline en verde, de los recursos en el portal y de la salida del 
 ## Costos
 
 VNet, subredes y NSG no tienen costo. Storage LRS y Key Vault generan centavos con uso de laboratorio. No se despliegan VMs, Azure Firewall, Bastion ni IPs públicas.
+
+## Estado de ejecución
+
+- La infraestructura se desplegó y verificó desde Azure Cloud Shell con `scripts/deploy.sh` en la región `brazilsouth`, una de las permitidas por la política de Azure for Students (ver capturas en `docs/evidencias/`).
+- `azure-pipelines.yml` define el pipeline Validate → Deploy → Verify. No se ejecutó porque la cuenta institucional (tenant universitario) no permitió crear la organización de Azure DevOps: el asistente no detecta la suscripción. El pipeline queda listo para correr al crear una Service Connection llamada `sc-azure-bootcamp`.
