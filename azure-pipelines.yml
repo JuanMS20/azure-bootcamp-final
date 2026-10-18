@@ -1,0 +1,121 @@
+# Pipeline como código: Validate -> Deploy -> Verify
+# Requiere una Service Connection (Azure Resource Manager) llamada igual que azureServiceConnection.
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - infra/*
+      - azure-pipelines.yml
+
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureServiceConnection: 'sc-azure-bootcamp'
+  resourceGroupName: 'rg-bootcamp-final'
+  location: 'westus3'
+  envName: 'dev'
+  namePrefix: 'bootc'
+  # IP pública autorizada para RDP/SSH en la subred de administración (formato CIDR)
+  adminSourceIp: '203.0.113.10/32'
+
+stages:
+  # ---------------------------------------------------------------
+  - stage: Validate
+    displayName: Validar Bicep
+    jobs:
+      - job: validate
+        displayName: Lint y what-if
+        steps:
+          - task: Bash@3
+            displayName: Compilar Bicep (lint)
+            inputs:
+              targetType: inline
+              script: |
+                az bicep install
+                az bicep build --file infra/main.bicep --stdout > /dev/null
+
+          - task: AzureCLI@2
+            displayName: What-if (vista previa de cambios)
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az group create \
+                  --name $(resourceGroupName) \
+                  --location $(location) \
+                  --tags proyecto=bootcamp-azure-final
+                az deployment group what-if \
+                  --resource-group $(resourceGroupName) \
+                  --template-file infra/main.bicep \
+                  --parameters envName=$(envName) prefix=$(namePrefix) adminSourceIp=$(adminSourceIp)
+
+  # ---------------------------------------------------------------
+  - stage: Deploy
+    displayName: Desplegar infraestructura
+    dependsOn: Validate
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: deploy_infra
+        displayName: Bicep -> Azure
+        environment: dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: Desplegar main.bicep
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az deployment group create \
+                        --name deploy-$(Build.BuildId) \
+                        --resource-group $(resourceGroupName) \
+                        --template-file infra/main.bicep \
+                        --parameters envName=$(envName) prefix=$(namePrefix) adminSourceIp=$(adminSourceIp) \
+                        --query properties.outputs
+
+  # ---------------------------------------------------------------
+  - stage: Verify
+    displayName: Verificar despliegue (smoke test)
+    dependsOn: Deploy
+    condition: succeeded()
+    jobs:
+      - job: verify
+        displayName: Comprobar recursos
+        steps:
+          - task: AzureCLI@2
+            displayName: Validar red, storage y Key Vault
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                echo "== Subredes =="
+                az network vnet show -g $(resourceGroupName) -n vnet-$(namePrefix)-$(envName) \
+                  --query "subnets[].{nombre:name, rango:addressPrefix}" -o table
+                COUNT=$(az network vnet show -g $(resourceGroupName) -n vnet-$(namePrefix)-$(envName) --query "length(subnets)" -o tsv)
+                test "$COUNT" -eq 3
+
+                echo "== Storage Account =="
+                az storage account list -g $(resourceGroupName) \
+                  --query "[].{nombre:name, hns:isHnsEnabled, tls:minimumTlsVersion, publico:allowBlobPublicAccess}" -o table
+
+                echo "== Key Vault =="
+                az keyvault list -g $(resourceGroupName) \
+                  --query "[].{nombre:name, rbac:properties.enableRbacAuthorization}" -o table
+
+                echo "Smoke test OK"
