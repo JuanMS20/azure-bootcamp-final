@@ -21,7 +21,7 @@ pool:
 variables:
   azureServiceConnection: 'sc-azure-bootcamp'
   resourceGroupName: 'rg-bootcamp-final'
-  location: 'westus3'
+  location: 'brazilsouth'
   envName: 'dev'
   namePrefix: 'bootc'
   # IP pública autorizada para RDP/SSH en la subred de administración (formato CIDR)
