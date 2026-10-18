@@ -93,7 +93,7 @@ bash scripts/cleanup.sh
 
 ## Evidencias
 
-Capturas del pipeline en verde, de los recursos en el portal y de la salida del smoke test en `docs/evidencias/`.
+Capturas en `docs/evidencias/`: presupuesto de 5 USD en Cost Management, salida de Cloud Shell con los recursos y las subredes, el Resource Group en el portal y la VNet con sus tres subredes.
 
 ## Costos
 
